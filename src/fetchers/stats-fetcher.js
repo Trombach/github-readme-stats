@@ -10,13 +10,14 @@ import {
   MissingParamError,
   request,
   wrapTextMultiline,
+  parseOwnerAffiliations,
 } from "../common/utils.js";
 
 dotenv.config();
 
 // GraphQL queries.
 const GRAPHQL_REPOS_FIELD = `
-  repositories(first: 100, ownerAffiliations: OWNER, orderBy: {direction: DESC, field: STARGAZERS}, after: $after) {
+  repositories(first: 100, after: $after, ownerAffiliations: $ownerAffiliations, orderBy: {direction: DESC, field: STARGAZERS}) {
     totalCount
     nodes {
       name
@@ -32,15 +33,15 @@ const GRAPHQL_REPOS_FIELD = `
 `;
 
 const GRAPHQL_REPOS_QUERY = `
-  query userInfo($login: String!, $after: String) {
-    user(login: $login) {
+  query userInfo($login: String!, $after: String, $ownerAffiliations: [RepositoryAffiliation]) {
+    user(login: $login, ownerAffiliations: $ownerAffiliations) {
       ${GRAPHQL_REPOS_FIELD}
     }
   }
 `;
 
 const GRAPHQL_STATS_QUERY = `
-  query userInfo($login: String!, $after: String) {
+  query userInfo($login: String!, $after: String, $ownerAffiliations: [RepositoryAffiliation]) {
     user(login: $login) {
       name
       login
@@ -105,16 +106,22 @@ const fetcher = (variables, token) => {
  * Fetch stats information for a given username.
  *
  * @param {string} username Github username.
+ * @param {string[]} ownerAffiliations The owner affiliations to filter by. Default: OWNER.
  * @returns {Promise<AxiosResponse>} Axios response.
  *
  * @description This function supports multi-page fetching if the 'FETCH_MULTI_PAGE_STARS' environment variable is set to true.
  */
-const statsFetcher = async (username) => {
+const statsFetcher = async (username, ownerAffiliations) => {
   let stats;
   let hasNextPage = true;
   let endCursor = null;
   while (hasNextPage) {
-    const variables = { login: username, first: 100, after: endCursor };
+    const variables = {
+      login: username,
+      first: 100,
+      after: endCursor,
+      ownerAffiliations: ownerAffiliations,
+    };
     let res = await retryer(fetcher, variables);
     if (res.data.errors) return res;
 
@@ -192,12 +199,15 @@ const totalCommitsFetcher = async (username) => {
  * @param {string} username GitHub username.
  * @param {boolean} include_all_commits Include all commits.
  * @param {string[]} exclude_repo Repositories to exclude.
+ * @param {string[]} exclude_repo Repositories to exclude.  Default: [].
+ * @param {string[]} ownerAffiliations Owner affiliations. Default: OWNER.
  * @returns {Promise<StatsData>} Stats data.
  */
 const fetchStats = async (
   username,
   include_all_commits = false,
   exclude_repo = [],
+  ownerAffiliations = [],
 ) => {
   if (!username) throw new MissingParamError(["username"]);
 
@@ -215,8 +225,9 @@ const fetchStats = async (
     contributedTo: 0,
     rank: { level: "C", percentile: 100 },
   };
+  ownerAffiliations = parseOwnerAffiliations(ownerAffiliations);
 
-  let res = await statsFetcher(username);
+  let res = await statsFetcher(username, ownerAffiliations);
 
   // Catch GraphQL errors.
   if (res.data.errors) {
