@@ -123,7 +123,9 @@ const statsFetcher = async (username, ownerAffiliations) => {
       ownerAffiliations: ownerAffiliations,
     };
     let res = await retryer(fetcher, variables);
-    if (res.data.errors) return res;
+    if (res.data.errors) {
+      return res;
+    }
 
     // Store stats data.
     const repoNodes = res.data.data.user.repositories.nodes;
@@ -158,8 +160,8 @@ const statsFetcher = async (username, ownerAffiliations) => {
  */
 const totalCommitsFetcher = async (username) => {
   if (!githubUsernameRegex.test(username)) {
-    logger.log("Invalid username");
-    return 0;
+    logger.log("Invalid username provided.");
+    throw new Error("Invalid username provided.");
   }
 
   // https://developer.github.com/v3/search/#search-commits
@@ -175,18 +177,22 @@ const totalCommitsFetcher = async (username) => {
     });
   };
 
+  let res;
   try {
-    let res = await retryer(fetchTotalCommits, { login: username });
-    let total_count = res.data.total_count;
-    if (!!total_count && !isNaN(total_count)) {
-      return res.data.total_count;
-    }
+    res = await retryer(fetchTotalCommits, { login: username });
   } catch (err) {
     logger.log(err);
+    throw new Error(err);
   }
-  // just return 0 if there is something wrong so that
-  // we don't break the whole app
-  return 0;
+
+  const totalCount = res.data.total_count;
+  if (!totalCount || isNaN(totalCount)) {
+    throw new CustomError(
+      "Could not fetch total commits.",
+      CustomError.GITHUB_REST_API_ERROR,
+    );
+  }
+  return totalCount;
 };
 
 /**
@@ -209,7 +215,9 @@ const fetchStats = async (
   exclude_repo = [],
   ownerAffiliations = [],
 ) => {
-  if (!username) throw new MissingParamError(["username"]);
+  if (!username) {
+    throw new MissingParamError(["username"]);
+  }
 
   const stats = {
     name: "",

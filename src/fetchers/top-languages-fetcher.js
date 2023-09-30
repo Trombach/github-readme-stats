@@ -74,7 +74,9 @@ const fetchTopLanguages = async (
   count_weight = 0,
   ownerAffiliations = [],
 ) => {
-  if (!username) throw new MissingParamError(["username"]);
+  if (!username) {
+    throw new MissingParamError(["username"]);
+  }
   ownerAffiliations = parseOwnerAffiliations(ownerAffiliations);
 
   const res = await retryer(fetcher, { login: username, ownerAffiliations });

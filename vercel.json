@@ -10,5 +10,16 @@
       "source": "/",
       "destination": "https://github.com/anuraghazra/github-readme-stats"
     }
+  ],
+  "headers": [
+    {
+      "source": "/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "max-age=0, s-maxage=86400"
+        }
+      ]
+    }
   ]
 }
